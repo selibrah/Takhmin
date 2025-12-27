@@ -22,9 +22,10 @@ export class WhatsAppMessagingService implements MessagingService {
                     'Content-Type': 'application/json'
                 }
             });
+            console.log(`✅ Message sent successfully to ${to}`);
         } catch (error: any) {
-            console.error('Error sending WhatsApp message:', JSON.stringify(error.response?.data || error.message, null, 2));
-            // In Phase 0, we'll just log it. In production, we'd handle retries.
+            const errorData = error.response?.data || error.message;
+            console.error(`❌ Error sending message to ${to}:`, JSON.stringify(errorData, null, 2));
         }
     }
 }

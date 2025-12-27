@@ -1,9 +1,8 @@
 {
   "name": "ghost-opportunity",
   "version": "1.0.0",
-  "description": "TAKHDIR - WhatsApp Football Prediction Game",
-  "main": "index.js",
-  "type": "module",
+  "description": "Takhmin - WhatsApp Football Prediction Game",
+  "main": "dist/index.js",
   "scripts": {
     "start": "node dist/index.js",
     "build": "tsc",

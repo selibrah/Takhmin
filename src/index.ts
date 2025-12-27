@@ -163,8 +163,11 @@ app.post('/webhook', async (req: any, res: any) => {
     }
 });
 
-const PORT = process.env.PORT || 3000;
+const PORT = process.env.PORT || 8080;
 app.listen(Number(PORT), '0.0.0.0', () => {
-    console.log(`Takhmin Bot is status: ONLINE`);
-    console.log(`Listening on 0.0.0.0:${PORT}`);
+    console.log(`=========================================`);
+    console.log(`   Takhmin Bot v1.0.4 - ONLINE`);
+    console.log(`   Internal Port: ${PORT}`);
+    console.log(`   Database: ${DB_PATH}`);
+    console.log(`=========================================`);
 });

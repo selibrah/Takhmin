@@ -17,6 +17,12 @@ import { DarijaMessages } from './infrastructure/messaging/DarijaMessages';
 const app = express();
 app.use(bodyParser.json());
 
+// Global Request Logger
+app.use((req, res, next) => {
+    console.log(`[${new Date().toISOString()}] ${req.method} ${req.url}`);
+    next();
+});
+
 // Configuration (should be environment variables)
 const DB_PATH = process.env.DB_PATH || './takhmin.db';
 const WA_TOKEN = process.env.WA_TOKEN || 'dummy_token';

@@ -42,6 +42,20 @@ export const DarijaMemes = {
     noPrediction: [
         "Ma dar walo o kaytsena i rbeh! ما دار والو 😴",
         "Khasek tdir prediction wla ghir tjless tfrrj? خاصك تدير 🤔",
+    ],
+
+    // Lock warnings (15m before kickoff)
+    lock: [
+        "L7abs tfermet! الحابس تفرمت! 🔒",
+        "3ad ma b9ash wakt! عاد ما بقاش وقت! ⏰",
+        "Predictions dyawlk wlaw m7absa! 🔐",
+    ],
+
+    // Result not submitted (Admin reminder)
+    noResult: [
+        "Wla nsa likom? ولا نساه ليكوم؟ 🤔",
+        "Finek a Admin? فينك Admin?",
+        "Dir result wla ma3andekch internet? 📡",
     ]
 };
 

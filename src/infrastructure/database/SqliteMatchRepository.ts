@@ -18,7 +18,7 @@ export class SqliteMatchRepository implements MatchRepository {
     }
 
     private mapToMatch(row: any): Match {
-        return new Match(
+        const match = new Match(
             row.id,
             row.teamA,
             row.teamB,
@@ -26,12 +26,19 @@ export class SqliteMatchRepository implements MatchRepository {
             row.status as MatchStatus,
             row.result as MatchResult
         );
+
+        // Restore poll tracking and lock state
+        (match as any).pollMessageId = row.poll_message_id;
+        (match as any).locked = row.locked === 1;
+        (match as any).lockedAt = row.locked_at;
+
+        return match;
     }
 
     async save(match: Match): Promise<void> {
         const stmt = this.db.prepare(`
-            INSERT OR REPLACE INTO matches (id, teamA, teamB, kickoffTime, status, result)
-            VALUES (?, ?, ?, ?, ?, ?)
+            INSERT OR REPLACE INTO matches (id, teamA, teamB, kickoffTime, status, result, poll_message_id, locked, locked_at)
+            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
         `);
         stmt.run(
             match.id,
@@ -39,7 +46,10 @@ export class SqliteMatchRepository implements MatchRepository {
             match.teamB,
             match.kickoffTime.toISOString(),
             match.status,
-            match.result || null
+            match.result || null,
+            (match as any).pollMessageId || null,
+            (match as any).locked ? 1 : 0,
+            (match as any).lockedAt || null
         );
     }
 }

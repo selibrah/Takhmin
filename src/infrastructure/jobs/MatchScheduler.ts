@@ -32,12 +32,17 @@ export class MatchScheduler {
             timezone: 'Africa/Casablanca'
         });
 
-        // Check for match locks every 5 minutes
-        cron.schedule('*/5 * * * *', async () => {
+        // Check for match locks every 1 minute
+        cron.schedule('* * * * *', async () => {
             await this.checkLockingMatches();
         });
 
-        console.log('✅ Match scheduler started (8 AM daily + lock checks every 5m)');
+        // Check for result reminders every 30 minutes
+        cron.schedule('*/30 * * * *', async () => {
+            await this.checkResultReminders();
+        });
+
+        console.log('✅ Match scheduler started (8 AM daily + lock checks + result reminders)');
     }
 
     private async fetchAndAnnounceMatches(): Promise<void> {
@@ -79,9 +84,78 @@ export class MatchScheduler {
     }
 
     private async checkLockingMatches(): Promise<void> {
-        // TODO: Implement lock notification logic
-        // - Find matches starting in next 15 minutes  
-        // - Send lock notification with predictions summary
-        // - Delete polls (if implemented)
+        try {
+            // Find matches starting in next 15 minutes that aren't locked yet
+            const now = new Date();
+            const fifteenMinutesLater = new Date(now.getTime() + 15 * 60 * 1000);
+
+            const stmt = (this.matchRepo as any).db.prepare(`
+                SELECT * FROM matches 
+                WHERE datetime(kickoffTime) BETWEEN datetime(?) AND datetime(?)
+                AND locked = 0
+            `);
+
+            const rows = stmt.all(now.toISOString(), fifteenMinutesLater.toISOString());
+
+            for (const row of rows) {
+                const match = (this.matchRepo as any).mapToMatch(row);
+
+                // Get predictions count
+                const predStmt = (this.matchRepo as any).db.prepare(
+                    'SELECT COUNT(*) as count FROM predictions WHERE matchId = ?'
+                );
+                const predCount = predStmt.get(match.id).count;
+
+                // Send lock notification
+                const lockMeme = getRandomMeme('lock');
+                const minutesLeft = Math.ceil((match.kickoffTime.getTime() - now.getTime()) / 60000);
+
+                await this.messaging.sendMessage(
+                    this.groupId,
+                    `🔒 ${lockMeme}\n\n${match.teamA} vs ${match.teamB}\n⏰ Ybda f ${minutesLeft} minutes!\n\n` +
+                    `${predCount} predictions submitted.\n3ad ma b9ash wakt!`
+                );
+
+                // Mark as locked
+                (match as any).locked = true;
+                (match as any).lockedAt = now.toISOString();
+                await this.matchRepo.save(match);
+
+                console.log(`🔒 Locked match: ${match.id}`);
+            }
+        } catch (error) {
+            console.error('[Scheduler] Failed to check locking matches:', error);
+        }
+    }
+
+    private async checkResultReminders(): Promise<void> {
+        try {
+            const twoHoursAgo = new Date(Date.now() - 2 * 60 * 60 * 1000);
+
+            const stmt = (this.matchRepo as any).db.prepare(`
+                SELECT * FROM matches 
+                WHERE datetime(kickoffTime) < datetime(?)
+                AND result IS NULL
+                AND status != 'SCHEDULED'
+            `);
+
+            const rows = stmt.all(twoHoursAgo.toISOString());
+
+            for (const row of rows) {
+                const match = (this.matchRepo as any).mapToMatch(row);
+                const meme = getRandomMeme('noResult');
+
+                await this.messaging.sendMessage(
+                    this.groupId,
+                    `⚽️ ${meme}\n\n${match.teamA} vs ${match.teamB} finished 2 hours ago!\n\n` +
+                    `Admin: Submit result with:\n/result ${match.id} [1/2/3]\n\n` +
+                    `Wla nsa likom? 🤔`
+                );
+
+                console.log(`⏰ Sent result reminder: ${match.id}`);
+            }
+        } catch (error) {
+            console.error('[Scheduler] Failed to check result reminders:', error);
+        }
     }
 }

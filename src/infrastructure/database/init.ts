@@ -11,7 +11,10 @@ export const initDb = (dbPath: string) => {
             teamB TEXT NOT NULL,
             kickoffTime TEXT NOT NULL,
             status TEXT NOT NULL,
-            result TEXT
+            result TEXT,
+            poll_message_id TEXT,
+            locked INTEGER DEFAULT 0,
+            locked_at TEXT
         );
 
         CREATE TABLE IF NOT EXISTS predictions (

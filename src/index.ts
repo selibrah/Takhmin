@@ -66,8 +66,16 @@ try {
     getLeaderboard = new GetLeaderboard(matchRepo, predictionRepo);
 } catch (error) {
     console.error('CRITICAL: Failed to initialize infrastructure:', error);
-    process.exit(1);
 }
+
+// Global Error Handlers for Debugging
+process.on('uncaughtException', (err) => {
+    console.error('UNCAUGHT EXCEPTION:', err);
+});
+
+process.on('unhandledRejection', (reason, promise) => {
+    console.error('UNHANDLED REJECTION at:', promise, 'reason:', reason);
+});
 
 // Health Check
 app.get('/', (req, res) => {

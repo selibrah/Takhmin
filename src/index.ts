@@ -1,6 +1,8 @@
-import { initDb } from './infrastructure/database/init';
+import express from 'express';
+import bodyParser from 'body-parser';
 import fs from 'fs';
 import path from 'path';
+import { initDb } from './infrastructure/database/init';
 import { SqliteMatchRepository } from './infrastructure/database/SqliteMatchRepository';
 import { SqlitePredictionRepository } from './infrastructure/database/SqlitePredictionRepository';
 import { SystemClock } from './infrastructure/Clock';
@@ -16,13 +18,26 @@ const app = express();
 app.use(bodyParser.json());
 
 // Configuration (should be environment variables)
-const DB_PATH = process.env.DB_PATH || './takhdir.db';
+const DB_PATH = process.env.DB_PATH || './takhmin.db';
 const WHATSAPP_TOKEN = process.env.WHATSAPP_TOKEN || 'dummy_token';
 const PHONE_NUMBER_ID = process.env.PHONE_NUMBER_ID || 'dummy_id';
-const VERIFY_TOKEN = process.env.VERIFY_TOKEN || 'takhdir_secret';
+const VERIFY_TOKEN = process.env.VERIFY_TOKEN || 'takhmin_secret';
 
 // Initialize Infrastructure
-console.log(`Starting Takhmin with DB_PATH: ${DB_PATH}`);
+console.log(`Starting Takhmin...`);
+console.log(`DB_PATH: ${DB_PATH}`);
+console.log(`PORT: ${process.env.PORT || 3000}`);
+
+let matchRepo: SqliteMatchRepository;
+let predictionRepo: SqlitePredictionRepository;
+let messagingService: WhatsAppMessagingService;
+let parser: CommandParser;
+let submitPrediction: SubmitPrediction;
+let createMatch: CreateMatch;
+let submitResult: SubmitResult;
+let getLeaderboard: GetLeaderboard;
+const clock = new SystemClock();
+
 try {
     const dbDir = path.dirname(DB_PATH);
     if (!fs.existsSync(dbDir)) {
@@ -30,24 +45,23 @@ try {
         fs.mkdirSync(dbDir, { recursive: true });
     }
     const db = initDb(DB_PATH);
-    const matchRepo = new SqliteMatchRepository(db);
-    const predictionRepo = new SqlitePredictionRepository(db);
-    const clock = new SystemClock();
-    const messagingService = new WhatsAppMessagingService(WHATSAPP_TOKEN, PHONE_NUMBER_ID);
-    const parser = new CommandParser();
+    matchRepo = new SqliteMatchRepository(db);
+    predictionRepo = new SqlitePredictionRepository(db);
+    messagingService = new WhatsAppMessagingService(WHATSAPP_TOKEN, PHONE_NUMBER_ID);
+    parser = new CommandParser();
 
     // Initialize Use Cases
-    const submitPrediction = new SubmitPrediction(matchRepo, predictionRepo, clock);
-    const createMatch = new CreateMatch(matchRepo);
-    const submitResult = new SubmitResult(matchRepo);
-    const getLeaderboard = new GetLeaderboard(matchRepo, predictionRepo);
+    submitPrediction = new SubmitPrediction(matchRepo, predictionRepo, clock);
+    createMatch = new CreateMatch(matchRepo);
+    submitResult = new SubmitResult(matchRepo);
+    getLeaderboard = new GetLeaderboard(matchRepo, predictionRepo);
 } catch (error) {
     console.error('CRITICAL: Failed to initialize infrastructure:', error);
     process.exit(1);
 }
 
 // Webhook Verification (WhatsApp requirement)
-app.get('/webhook', (req, res) => {
+app.get('/webhook', (req: any, res: any) => {
     const mode = req.query['hub.mode'];
     const token = req.query['hub.verify_token'];
     const challenge = req.query['hub.challenge'];
@@ -60,7 +74,7 @@ app.get('/webhook', (req, res) => {
 });
 
 // Webhook Message Handling
-app.post('/webhook', async (req, res) => {
+app.post('/webhook', async (req: any, res: any) => {
     const body = req.body;
 
     if (body.object === 'whatsapp_business_account') {
@@ -72,7 +86,7 @@ app.post('/webhook', async (req, res) => {
         if (message?.type === 'text') {
             const from = message.from;
             const text = message.text.body;
-            const groupId = value?.metadata?.display_phone_number || 'default_group'; // Simplified
+            const groupId = value?.metadata?.display_phone_number || 'default_group';
 
             try {
                 const command = parser.parse(text);
@@ -83,7 +97,6 @@ app.post('/webhook', async (req, res) => {
                         break;
 
                     case 'MATCH':
-                        // /match M1 Wydad Raja 2025-12-31T20:00:00Z
                         await createMatch.execute({
                             id: command.id,
                             teamA: command.teamA,
@@ -114,7 +127,7 @@ app.post('/webhook', async (req, res) => {
                     case 'SCORE':
                         const scores = await getLeaderboard.execute(groupId);
                         const rankingText = scores
-                            .map((s, i) => `${i + 1}. ${s.userId.slice(-4)}: ${s.score} pts`)
+                            .map((s: any, i: number) => `${i + 1}. ${s.userId.slice(-4)}: ${s.score} pts`)
                             .join('\n');
                         await messagingService.sendMessage(from, DarijaMessages.LEADERBOARD(rankingText || 'مازال تا واحد ما بدا التوقع.'));
                         break;

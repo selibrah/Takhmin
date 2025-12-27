@@ -13,6 +13,8 @@ import { CreateMatch } from './application/use-cases/CreateMatch';
 import { SubmitResult } from './application/use-cases/SubmitResult';
 import { GetLeaderboard } from './application/use-cases/GetLeaderboard';
 import { DarijaMessages } from './infrastructure/messaging/DarijaMessages';
+import { AFCONMatchFetcher } from './infrastructure/sports/AFCONMatchFetcher';
+import { MatchScheduler } from './infrastructure/jobs/MatchScheduler';
 
 const app = express();
 app.use(bodyParser.json());
@@ -29,6 +31,8 @@ const WA_TOKEN = process.env.WA_TOKEN || 'dummy_token';
 const WA_ID = process.env.WA_ID || 'dummy_id';
 const VERIFY_TOKEN = process.env.VERIFY_TOKEN || 'takhmin_secret';
 const PORT = process.env.PORT || 8080;
+const AFCON_API_KEY = process.env.AFCON_API_KEY || ''; // Live-score API key
+const DEFAULT_GROUP = process.env.DEFAULT_GROUP || '15551786049'; // Test number from Meta
 
 // Dependencies (initialized later)
 let matchRepo: SqliteMatchRepository;
@@ -95,6 +99,15 @@ const initialize = async () => {
         createMatch = new CreateMatch(matchRepo);
         submitResult = new SubmitResult(matchRepo);
         getLeaderboard = new GetLeaderboard(matchRepo, predictionRepo);
+
+        // Start AFCON match scheduler
+        if (AFCON_API_KEY) {
+            const fetcher = new AFCONMatchFetcher(AFCON_API_KEY);
+            const scheduler = new MatchScheduler(fetcher, messagingService, matchRepo, DEFAULT_GROUP);
+            scheduler.start();
+        } else {
+            console.log('⚠️  AFCON_API_KEY not set. Scheduler disabled.');
+        }
 
         console.log('✅ Infrastructure initialized successfully.');
     } catch (error) {

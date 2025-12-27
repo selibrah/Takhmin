@@ -88,6 +88,8 @@ app.post('/webhook', async (req: any, res: any) => {
             const text = message.text.body;
             const groupId = value?.metadata?.display_phone_number || 'default_group';
 
+            console.log(`Received message: "${text}" from ${from} in group ${groupId}`);
+
             try {
                 const command = parser.parse(text);
 

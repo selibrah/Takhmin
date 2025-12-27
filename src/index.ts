@@ -63,6 +63,11 @@ try {
     process.exit(1);
 }
 
+// Health Check
+app.get('/', (req, res) => {
+    res.send('<h1>Takhmin ⚽️ Bot is Online!</h1><p>Webhook is ready at /webhook</p>');
+});
+
 // Webhook Verification (WhatsApp requirement)
 app.get('/webhook', (req: any, res: any) => {
     const mode = req.query['hub.mode'];

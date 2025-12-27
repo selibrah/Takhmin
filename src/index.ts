@@ -1,0 +1,127 @@
+import express from 'express';
+import bodyParser from 'body-parser';
+import { initDb } from './infrastructure/database/init';
+import { SqliteMatchRepository } from './infrastructure/database/SqliteMatchRepository';
+import { SqlitePredictionRepository } from './infrastructure/database/SqlitePredictionRepository';
+import { SystemClock } from './infrastructure/Clock';
+import { WhatsAppMessagingService } from './infrastructure/messaging/WhatsAppMessagingService';
+import { CommandParser } from './infrastructure/messaging/CommandParser';
+import { SubmitPrediction } from './application/use-cases/SubmitPrediction';
+import { CreateMatch } from './application/use-cases/CreateMatch';
+import { SubmitResult } from './application/use-cases/SubmitResult';
+import { GetLeaderboard } from './application/use-cases/GetLeaderboard';
+import { DarijaMessages } from './infrastructure/messaging/DarijaMessages';
+
+const app = express();
+app.use(bodyParser.json());
+
+// Configuration (should be environment variables)
+const DB_PATH = process.env.DB_PATH || './takhdir.db';
+const WHATSAPP_TOKEN = process.env.WHATSAPP_TOKEN || 'dummy_token';
+const PHONE_NUMBER_ID = process.env.PHONE_NUMBER_ID || 'dummy_id';
+const VERIFY_TOKEN = process.env.VERIFY_TOKEN || 'takhdir_secret';
+
+// Initialize Infrastructure
+const db = initDb(DB_PATH);
+const matchRepo = new SqliteMatchRepository(db);
+const predictionRepo = new SqlitePredictionRepository(db);
+const clock = new SystemClock();
+const messagingService = new WhatsAppMessagingService(WHATSAPP_TOKEN, PHONE_NUMBER_ID);
+const parser = new CommandParser();
+
+// Initialize Use Cases
+const submitPrediction = new SubmitPrediction(matchRepo, predictionRepo, clock);
+const createMatch = new CreateMatch(matchRepo);
+const submitResult = new SubmitResult(matchRepo);
+const getLeaderboard = new GetLeaderboard(matchRepo, predictionRepo);
+
+// Webhook Verification (WhatsApp requirement)
+app.get('/webhook', (req, res) => {
+    const mode = req.query['hub.mode'];
+    const token = req.query['hub.verify_token'];
+    const challenge = req.query['hub.challenge'];
+
+    if (mode === 'subscribe' && token === VERIFY_TOKEN) {
+        res.status(200).send(challenge);
+    } else {
+        res.sendStatus(403);
+    }
+});
+
+// Webhook Message Handling
+app.post('/webhook', async (req, res) => {
+    const body = req.body;
+
+    if (body.object === 'whatsapp_business_account') {
+        const entry = body.entry?.[0];
+        const changes = entry?.changes?.[0];
+        const value = changes?.value;
+        const message = value?.messages?.[0];
+
+        if (message?.type === 'text') {
+            const from = message.from;
+            const text = message.text.body;
+            const groupId = value?.metadata?.display_phone_number || 'default_group'; // Simplified
+
+            try {
+                const command = parser.parse(text);
+
+                switch (command.type) {
+                    case 'START':
+                        await messagingService.sendMessage(from, DarijaMessages.WELCOME);
+                        break;
+
+                    case 'MATCH':
+                        // /match M1 Wydad Raja 2025-12-31T20:00:00Z
+                        await createMatch.execute({
+                            id: command.id,
+                            teamA: command.teamA,
+                            teamB: command.teamB,
+                            kickoffTime: new Date(command.time)
+                        });
+                        await messagingService.sendMessage(from, DarijaMessages.MATCH_CREATED(command.teamA, command.teamB));
+                        break;
+
+                    case 'PREDICT':
+                        await submitPrediction.execute({
+                            userId: from,
+                            matchId: command.matchId,
+                            groupId: groupId,
+                            choice: command.choice
+                        });
+                        await messagingService.sendMessage(from, DarijaMessages.PREDICTION_SAVED);
+                        break;
+
+                    case 'RESULT':
+                        await submitResult.execute({
+                            matchId: command.matchId,
+                            result: command.result
+                        });
+                        await messagingService.sendMessage(from, DarijaMessages.RESULT_SAVED(command.matchId, command.result));
+                        break;
+
+                    case 'SCORE':
+                        const scores = await getLeaderboard.execute(groupId);
+                        const rankingText = scores
+                            .map((s, i) => `${i + 1}. ${s.userId.slice(-4)}: ${s.score} pts`)
+                            .join('\n');
+                        await messagingService.sendMessage(from, DarijaMessages.LEADERBOARD(rankingText || 'مازال تا واحد ما بدا التوقع.'));
+                        break;
+
+                    default:
+                        await messagingService.sendMessage(from, DarijaMessages.INVALID_COMMAND);
+                }
+            } catch (error: any) {
+                await messagingService.sendMessage(from, error.message);
+            }
+        }
+        res.sendStatus(200);
+    } else {
+        res.sendStatus(404);
+    }
+});
+
+const PORT = process.env.PORT || 3000;
+app.listen(PORT, () => {
+    console.log(`TAKHDIR Bot is running on port ${PORT}`);
+});

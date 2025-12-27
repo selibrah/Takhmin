@@ -27,6 +27,9 @@ const VERIFY_TOKEN = process.env.VERIFY_TOKEN || 'takhmin_secret';
 console.log(`Starting Takhmin...`);
 console.log(`DB_PATH: ${DB_PATH}`);
 console.log(`PORT: ${process.env.PORT || 3000}`);
+console.log(`WA_TOKEN presence: ${WA_TOKEN !== 'dummy_token'} (length: ${WA_TOKEN.length})`);
+console.log(`WA_ID presence: ${WA_ID !== 'dummy_id'} (length: ${WA_ID.length})`);
+console.log(`VERIFY_TOKEN presence: ${VERIFY_TOKEN !== 'takhdir_secret'} (length: ${VERIFY_TOKEN.length})`);
 
 let matchRepo: SqliteMatchRepository;
 let predictionRepo: SqlitePredictionRepository;
@@ -75,7 +78,9 @@ app.get('/webhook', (req: any, res: any) => {
 
 // Webhook Message Handling
 app.post('/webhook', async (req: any, res: any) => {
+    console.log('>>> Incoming Webhook POST');
     const body = req.body;
+    console.log('Body:', JSON.stringify(body, null, 2));
 
     if (body.object === 'whatsapp_business_account') {
         const entry = body.entry?.[0];

@@ -19,8 +19,8 @@ app.use(bodyParser.json());
 
 // Configuration (should be environment variables)
 const DB_PATH = process.env.DB_PATH || './takhmin.db';
-const WHATSAPP_TOKEN = process.env.WHATSAPP_TOKEN || 'dummy_token';
-const PHONE_NUMBER_ID = process.env.PHONE_NUMBER_ID || 'dummy_id';
+const WA_TOKEN = process.env.WA_TOKEN || 'dummy_token';
+const WA_ID = process.env.WA_ID || 'dummy_id';
 const VERIFY_TOKEN = process.env.VERIFY_TOKEN || 'takhmin_secret';
 
 // Initialize Infrastructure
@@ -47,7 +47,7 @@ try {
     const db = initDb(DB_PATH);
     matchRepo = new SqliteMatchRepository(db);
     predictionRepo = new SqlitePredictionRepository(db);
-    messagingService = new WhatsAppMessagingService(WHATSAPP_TOKEN, PHONE_NUMBER_ID);
+    messagingService = new WhatsAppMessagingService(WA_TOKEN, WA_ID);
     parser = new CommandParser();
 
     // Initialize Use Cases

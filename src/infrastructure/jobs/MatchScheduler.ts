@@ -24,6 +24,11 @@ export class MatchScheduler {
     }
 
     start() {
+        // Fetch today's matches immediately on startup (if not fetched yet)
+        this.fetchAndAnnounceMatches().catch(err =>
+            console.error('[Scheduler] Startup fetch failed:', err)
+        );
+
         // Daily match fetch at 8 AM Morocco time (Africa/Casablanca = UTC+1)
         cron.schedule('0 8 * * *', async () => {
             console.log('[Scheduler] Fetching today\'s AFCON matches...');
@@ -42,7 +47,7 @@ export class MatchScheduler {
             await this.checkResultReminders();
         });
 
-        console.log('✅ Match scheduler started (8 AM daily + lock checks + result reminders)');
+        console.log('✅ Match scheduler started (startup fetch + 8 AM daily + lock checks + result reminders)');
     }
 
     private async fetchAndAnnounceMatches(): Promise<void> {
@@ -51,6 +56,13 @@ export class MatchScheduler {
 
             if (matches.length === 0) {
                 console.log('[Scheduler] No AFCON matches today');
+                return;
+            }
+
+            // Check if we already have these matches (avoid duplicate announcements)
+            const existingMatch = await this.matchRepo.findById(matches[0].matchId);
+            if (existingMatch) {
+                console.log('[Scheduler] Matches already fetched for today, skipping announcement');
                 return;
             }
 

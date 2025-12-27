@@ -1,6 +1,6 @@
-import express from 'express';
-import bodyParser from 'body-parser';
 import { initDb } from './infrastructure/database/init';
+import fs from 'fs';
+import path from 'path';
 import { SqliteMatchRepository } from './infrastructure/database/SqliteMatchRepository';
 import { SqlitePredictionRepository } from './infrastructure/database/SqlitePredictionRepository';
 import { SystemClock } from './infrastructure/Clock';
@@ -22,18 +22,29 @@ const PHONE_NUMBER_ID = process.env.PHONE_NUMBER_ID || 'dummy_id';
 const VERIFY_TOKEN = process.env.VERIFY_TOKEN || 'takhdir_secret';
 
 // Initialize Infrastructure
-const db = initDb(DB_PATH);
-const matchRepo = new SqliteMatchRepository(db);
-const predictionRepo = new SqlitePredictionRepository(db);
-const clock = new SystemClock();
-const messagingService = new WhatsAppMessagingService(WHATSAPP_TOKEN, PHONE_NUMBER_ID);
-const parser = new CommandParser();
+console.log(`Starting Takhmin with DB_PATH: ${DB_PATH}`);
+try {
+    const dbDir = path.dirname(DB_PATH);
+    if (!fs.existsSync(dbDir)) {
+        console.log(`Creating directory: ${dbDir}`);
+        fs.mkdirSync(dbDir, { recursive: true });
+    }
+    const db = initDb(DB_PATH);
+    const matchRepo = new SqliteMatchRepository(db);
+    const predictionRepo = new SqlitePredictionRepository(db);
+    const clock = new SystemClock();
+    const messagingService = new WhatsAppMessagingService(WHATSAPP_TOKEN, PHONE_NUMBER_ID);
+    const parser = new CommandParser();
 
-// Initialize Use Cases
-const submitPrediction = new SubmitPrediction(matchRepo, predictionRepo, clock);
-const createMatch = new CreateMatch(matchRepo);
-const submitResult = new SubmitResult(matchRepo);
-const getLeaderboard = new GetLeaderboard(matchRepo, predictionRepo);
+    // Initialize Use Cases
+    const submitPrediction = new SubmitPrediction(matchRepo, predictionRepo, clock);
+    const createMatch = new CreateMatch(matchRepo);
+    const submitResult = new SubmitResult(matchRepo);
+    const getLeaderboard = new GetLeaderboard(matchRepo, predictionRepo);
+} catch (error) {
+    console.error('CRITICAL: Failed to initialize infrastructure:', error);
+    process.exit(1);
+}
 
 // Webhook Verification (WhatsApp requirement)
 app.get('/webhook', (req, res) => {
@@ -122,6 +133,7 @@ app.post('/webhook', async (req, res) => {
 });
 
 const PORT = process.env.PORT || 3000;
-app.listen(PORT, () => {
-    console.log(`TAKHDIR Bot is running on port ${PORT}`);
+app.listen(Number(PORT), '0.0.0.0', () => {
+    console.log(`Takhmin Bot is status: ONLINE`);
+    console.log(`Listening on 0.0.0.0:${PORT}`);
 });

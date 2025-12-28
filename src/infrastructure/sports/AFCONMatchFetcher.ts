@@ -17,13 +17,27 @@ export class AFCONMatchFetcher {
         try {
             console.log('[FlashScore] Launching headless browser...');
 
-            // Launch browser (works locally and on Railway)
-            browser = await puppeteer.launch({
-                args: chromium.args,
-                defaultViewport: { width: 1920, height: 1080 },
-                executablePath: await chromium.executablePath(),
-                headless: true,
-            });
+            // Detect environment
+            const isProduction = process.env.RAILWAY_ENVIRONMENT || process.env.NODE_ENV === 'production';
+
+            if (isProduction) {
+                // Production: Use @sparticuz/chromium for Railway
+                console.log('[FlashScore] Using serverless Chromium (Railway)');
+                browser = await puppeteer.launch({
+                    args: chromium.args,
+                    defaultViewport: { width: 1920, height: 1080 },
+                    executablePath: await chromium.executablePath(),
+                    headless: true,
+                });
+            } else {
+                // Local: Use full puppeteer with local Chrome
+                console.log('[FlashScore] Using local Puppeteer');
+                const puppeteerFull = await import('puppeteer');
+                browser = await puppeteerFull.default.launch({
+                    headless: true,
+                    args: ['--no-sandbox', '--disable-setuid-sandbox']
+                });
+            }
 
             const page = await browser.newPage();
             console.log('[FlashScore] Navigating to FlashScore...');

@@ -124,6 +124,62 @@ app.post('/webhook', async (req: any, res: any) => {
         const value = changes?.value;
         const message = value?.messages?.[0];
 
+        // Handle button replies (interactive messages)
+        if (message?.type === 'interactive') {
+            const from = message.from;
+            const buttonReply = message.interactive?.button_reply;
+            const buttonId = buttonReply?.id;
+            const groupId = value?.metadata?.display_phone_number || 'default_group';
+
+            console.log(`Received button click: "${buttonId}" from ${from}`);
+
+            if (!submitPrediction) {
+                return res.sendStatus(503);
+            }
+
+            try {
+                // Parse button ID format: "predict:MATCHID:CHOICE" or "action:TYPE"
+                const parts = buttonId.split(':');
+
+                if (parts[0] === 'predict') {
+                    const matchId = parts[1];
+                    const choice = parts[2]; // "1", "2", or "3"
+                    const choiceMap: any = { '1': '1', '2': 'X', '3': '2' };
+
+                    await submitPrediction.execute({
+                        userId: from,
+                        matchId: matchId,
+                        groupId: groupId,
+                        choice: choiceMap[choice]
+                    });
+
+                    await messagingService.sendMessage(from, '✅ Nta o zahrak! Prediction saved 🍀');
+
+                } else if (parts[0] === 'action') {
+                    // Handle quick actions
+                    const action = parts[1];
+                    if (action === 'matches') {
+                        const command = parser.parse('/matches');
+                        // Trigger matches command (code below handles it)
+                    } else if (action === 'score') {
+                        const scores = await getLeaderboard.execute(groupId);
+                        const rankingText = scores
+                            .map((s: any, i: number) => `${i + 1}. ${s.userId.slice(-4)}: ${s.score} pts`)
+                            .join('\n');
+                        await messagingService.sendMessage(from, DarijaMessages.LEADERBOARD(rankingText || 'مازال تا واحد ما بدا التوقع.'));
+                    } else if (action === 'help') {
+                        await messagingService.sendMessage(from, DarijaMessages.WELCOME);
+                    }
+                }
+            } catch (error: any) {
+                console.error('Error processing button:', error.message);
+                await messagingService.sendMessage(from, error.message);
+            }
+
+            return res.sendStatus(200);
+        }
+
+        // Handle text messages
         if (message?.type === 'text') {
             const from = message.from;
             const text = message.text.body;

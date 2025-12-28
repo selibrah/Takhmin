@@ -78,18 +78,33 @@ export class MatchScheduler {
                 await this.matchRepo.save(match);
             }
 
-            // Announce to group with sarcasm
+            // Announce with interactive polls (one poll per match)
             const announcement = getRandomMeme('matchAnnouncement');
-            const matchList = matches.map((m, i) =>
-                `${i + 1}. ${m.homeTeam} 🆚 ${m.awayTeam} - ${m.kickoffTime.toLocaleTimeString('fr-MA', { hour: '2-digit', minute: '2-digit' })}`
-            ).join('\n');
-
             await this.messaging.sendMessage(
                 this.groupId,
-                `${announcement}\n\n${matchList}\n\n⚽️ Dir prediction dyalek daba!`
+                `${announcement}\n\n🎮 ${matches.length} matches today! Tap to predict:`
             );
 
-            console.log(`✅ Announced ${matches.length} matches to group`);
+            // Send individual interactive polls for each match
+            for (const m of matches) {
+                const time = m.kickoffTime.toLocaleTimeString('fr-MA', {
+                    hour: '2-digit',
+                    minute: '2-digit'
+                });
+
+                await this.messaging.sendPoll(
+                    this.groupId,
+                    m.matchId,
+                    m.homeTeam,
+                    m.awayTeam,
+                    time
+                );
+
+                // Small delay to avoid rate limiting
+                await new Promise(resolve => setTimeout(resolve, 500));
+            }
+
+            console.log(`✅ Announced ${matches.length} matches with interactive polls`);
         } catch (error) {
             console.error('[Scheduler] Failed to fetch/announce matches:', error);
         }

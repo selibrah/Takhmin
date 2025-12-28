@@ -286,6 +286,59 @@ app.post('/webhook', async (req: any, res: any) => {
                         // Send quick actions menu
                         await messagingService.sendQuickActions(from);
                         break;
+                    case 'PREDICTIONS':
+                        // Show predictions for a match or all unlocked matches
+                        const predDb = (matchRepo as any).db;
+                        let matchesToShow: any[] = [];
+
+                        if (command.matchId) {
+                            // Specific match
+                            const match = predDb.prepare('SELECT * FROM matches WHERE id = ?').get(command.matchId);
+                            if (match) matchesToShow = [match];
+                        } else {
+                            // All unlocked matches
+                            matchesToShow = predDb.prepare(`
+                                SELECT * FROM matches 
+                                WHERE datetime(kickoffTime) > datetime('now')
+                                AND locked = 0
+                                ORDER BY kickoffTime ASC
+                                LIMIT 5
+                            `).all();
+                        }
+
+                        if (matchesToShow.length === 0) {
+                            await messagingService.sendMessage(from, 'Ma kaynch matches! 🤷‍♂️');
+                        } else {
+                            let predictionSummary = '📊 Predictions:\n\n';
+
+                            for (const match of matchesToShow) {
+                                const predictions = predDb.prepare(`
+                                    SELECT userId, choice, createdAt 
+                                    FROM predictions 
+                                    WHERE matchId = ?
+                                    ORDER BY createdAt ASC
+                                `).all(match.id);
+
+                                predictionSummary += `⚽️ ${match.teamA} vs ${match.teamB}\n`;
+
+                                if (predictions.length === 0) {
+                                    predictionSummary += '   No predictions yet! 😴\n\n';
+                                } else {
+                                    const choiceMap: any = { '1': '🏠 Home', 'X': '🤝 Draw', '2': '✈️ Away' };
+                                    const grouped: any = { '1': 0, 'X': 0, '2': 0 };
+
+                                    predictions.forEach((p: any) => {
+                                        grouped[p.choice]++;
+                                    });
+
+                                    predictionSummary += `   ${choiceMap['1']}: ${grouped['1']} | ${choiceMap['X']}: ${grouped['X']} | ${choiceMap['2']}: ${grouped['2']}\n`;
+                                    predictionSummary += `   Total: ${predictions.length} predictions\n\n`;
+                                }
+                            }
+
+                            await messagingService.sendMessage(from, predictionSummary + 'Dir prediction dyalek! 🎯');
+                        }
+                        break;
                     default:
                         await messagingService.sendMessage(from, DarijaMessages.INVALID_COMMAND);
                 }

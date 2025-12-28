@@ -252,6 +252,40 @@ app.post('/webhook', async (req: any, res: any) => {
                             );
                         }
                         break;
+                    case 'POLL':
+                        // Send interactive poll for a match (or all matches)
+                        const pollDb = (matchRepo as any).db;
+                        let matchesToPoll: any[] = [];
+
+                        if (command.matchId) {
+                            // Specific match
+                            const match = pollDb.prepare('SELECT * FROM matches WHERE id = ? AND locked = 0').get(command.matchId);
+                            if (match) matchesToPoll = [match];
+                        } else {
+                            // All unlocked matches
+                            matchesToPoll = pollDb.prepare(`
+                                SELECT * FROM matches 
+                                WHERE datetime(kickoffTime) > datetime('now')
+                                AND locked = 0
+                                ORDER BY kickoffTime ASC
+                            `).all();
+                        }
+
+                        if (matchesToPoll.length === 0) {
+                            await messagingService.sendMessage(from, 'Ma kaynch matches available for polls! 🤷‍♂️');
+                        } else {
+                            for (const m of matchesToPoll) {
+                                const kickoff = new Date(m.kickoffTime);
+                                const time = kickoff.toLocaleTimeString('fr-MA', { hour: '2-digit', minute: '2-digit' });
+                                await messagingService.sendPoll(from, m.id, m.teamA, m.teamB, time);
+                                await new Promise(resolve => setTimeout(resolve, 500));
+                            }
+                        }
+                        break;
+                    case 'MENU':
+                        // Send quick actions menu
+                        await messagingService.sendQuickActions(from);
+                        break;
                     default:
                         await messagingService.sendMessage(from, DarijaMessages.INVALID_COMMAND);
                 }

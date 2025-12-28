@@ -168,6 +168,34 @@ app.post('/webhook', async (req: any, res: any) => {
                             .join('\n');
                         await messagingService.sendMessage(from, DarijaMessages.LEADERBOARD(rankingText || 'مازال تا واحد ما بدا التوقع.'));
                         break;
+                    case 'MATCHES':
+                        // Show available matches
+                        const db = (matchRepo as any).db;
+                        const upcomingMatches = db.prepare(`
+                            SELECT * FROM matches 
+                            WHERE datetime(kickoffTime) > datetime('now')
+                            AND locked = 0
+                            ORDER BY kickoffTime ASC
+                        `).all();
+
+                        if (upcomingMatches.length === 0) {
+                            await messagingService.sendMessage(
+                                from,
+                                `Ma kaynch matches lyoum! 🤷‍♂️\n\nCheck back later wla dir /start for commands.`
+                            );
+                        } else {
+                            const matchList = upcomingMatches.map((m: any, i: number) => {
+                                const kickoff = new Date(m.kickoffTime);
+                                const time = kickoff.toLocaleTimeString('fr-MA', { hour: '2-digit', minute: '2-digit' });
+                                return `${i + 1}. ${m.teamA} 🆚 ${m.teamB}\n   ⏰ ${time} | ID: ${m.id}\n   /predict ${m.id} [1/2/3]`;
+                            }).join('\n\n');
+
+                            await messagingService.sendMessage(
+                                from,
+                                `⚽️ Available Matches:\n\n${matchList}\n\nDir prediction dyalek! 🎯`
+                            );
+                        }
+                        break;
                     default:
                         await messagingService.sendMessage(from, DarijaMessages.INVALID_COMMAND);
                 }

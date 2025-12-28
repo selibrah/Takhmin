@@ -1,5 +1,6 @@
 export type ParsedCommand =
     | { type: 'START' }
+    | { type: 'MATCHES' }
     | { type: 'MATCH', id: string, teamA: string, teamB: string, time: string }
     | { type: 'PREDICT', matchId: string, choice: '1' | 'X' | '2' }
     | { type: 'RESULT', matchId: string, result: '1' | 'X' | '2' }
@@ -12,6 +13,7 @@ export class CommandParser {
         const cmd = parts[0].toLowerCase();
 
         if (cmd === '/start') return { type: 'START' };
+        if (cmd === '/matches') return { type: 'MATCHES' };
         if (cmd === '/score') return { type: 'SCORE' };
 
         if (cmd === '/match' && parts.length >= 4) {
